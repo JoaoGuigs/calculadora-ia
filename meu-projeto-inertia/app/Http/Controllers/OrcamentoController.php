@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
 use GuzzleHttp\Client as GuzzleClient;
+use Gemini\Data\GenerationConfig;
+use Gemini\Enums\ResponseMimeType;
 
 class OrcamentoController extends Controller
 {
@@ -49,6 +51,7 @@ class OrcamentoController extends Controller
 
 
         $sugestaoIa = null;
+        $dadosArray = [];
 
         if ($request->filled('descricao')) {
             $apiKey = config('gemini.api_key');
@@ -63,30 +66,52 @@ class OrcamentoController extends Controller
                 ->withApiKey($apiKey)
                 ->withHttpClient($httpClient)
                 ->make();
-            $prompt = "Você é um especialista em estimativa de tempo para projetos de desenvolvimento de software e design freela. 
-            Analise a seguinte descrição de projeto fornecida pelo usuário e sugira o número total de horas estimadas para conclusão. 
-            
-            REGRAS DE RESPOSTA:
-            1. Retorne APENAS um número inteiro ou um intervalo simples (ex: '20' ou '15-25'). 
-            2. Não escreva textos, justificativas ou a palavra 'horas'.
-            3. Se a descrição for muito vaga, retorne 'vago'         DESCRIÇÃO: {$request->descricao}";
-
+            $prompt = "Você é um Gerente de Projetos Tech. Analise o escopo: '{$request->descricao}'.
+    Retorne um JSON com a seguinte estrutura:
+    {
+      \"total_sugerido\": (int),
+      \"complexidade\": \"baixa|media|alta\",
+      \"tarefas\": [
+        { \"item\": \"Nome da tarefa\", \"horas\": (int), \"descricao\": \"breve explicação\" }
+      ]
+    }
+    Estime as horas de forma realista para um desenvolvedor sênior.";
             try {
                 // usa modelo estável e amplamente disponível
-                $result = $client->generativeModel('models/gemini-2.5-flash')
-                    ->generateContent($prompt);
-                  
-                $respostaTexto = $result->text();
-                $sugestaoIa = trim($respostaTexto);
-            } catch (\Exception $e) {
+                $modelo = $client->generativeModel('models/gemini-2.5-flash-lite') // Recomendo 1.5 ou 2.0 para estabilidade
+                    ->withGenerationConfig(new GenerationConfig(
+                        responseMimeType: ResponseMimeType::APPLICATION_JSON
+                    ));
                 
-                \Log::error('Erro ao chamar Gemini: ' . $e->getMessage());
+                $result = $modelo->generateContent($prompt);
+                $dadosIA = $result->text();
+                $decoded = json_decode($dadosIA, true);
+
+                if (is_array($decoded)) {
+                    $totalSugerido = $decoded['total_sugerido'] ?? null;
+                    $tarefas = $decoded['tarefas'] ?? [];
+
+                    if (!is_array($tarefas)) {
+                        $tarefas = [];
+                    }
+
+                    $sugestaoIa = $totalSugerido;
+                    $dadosArray = [
+                        'total_sugerido' => $totalSugerido,
+                        'tarefas' => $tarefas,
+                    ];
+                }
+            } catch (\Exception $e) {
+
+                Log::error('Erro ao chamar Gemini: ' . $e->getMessage());
                 $sugestaoIa = 'Erro ao usar IA';
+                $dadosArray = [];
             }
         }
         return Inertia::render('Calculadora', [
             'total' => $total,
             'historico' => $historico,
+            'dadosIA' => $dadosArray,
             'sugestaoIa' => $sugestaoIa,
         ]);
     }
