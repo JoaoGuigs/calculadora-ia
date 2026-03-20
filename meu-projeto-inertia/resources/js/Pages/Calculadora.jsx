@@ -6,6 +6,7 @@ export default function Calculadora({ total, sugestaoIa, dadosIA }) {
         valor_hora: "",
         horas: "",
         descricao: "",
+        ajuste: "",
     });
 
     const enviarParaCalculo = (e) => {
@@ -124,6 +125,31 @@ export default function Calculadora({ total, sugestaoIa, dadosIA }) {
                         )}
                     </button>
                 </div>
+                {dadosIA && (
+                    <div className="md:col-span-2 mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                        <label className="block text-xs font-bold text-amber-800 uppercase mb-2">
+                            Não gostou da estimativa? Peça um ajuste:
+                        </label>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={data.ajuste}
+                                onChange={(e) =>
+                                    setData("ajuste", e.target.value)
+                                }
+                                placeholder="Ex: 'Considere que já tenho o layout pronto'..."
+                                className="flex-1 p-2 text-sm border-amber-300 rounded-lg focus:ring-amber-500"
+                            />
+                            <button
+                                onClick={enviarParaCalculo} // Reutiliza a função de post
+                                className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700"
+                            >
+                                Refinar
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Coloque isso logo abaixo do card de sugestão principal */}
                 {tarefas.length > 0 || totalSugerido !== null ? (
                     <div className="mt-6 border-t pt-6 w-full md:col-span-2">
@@ -145,7 +171,7 @@ export default function Calculadora({ total, sugestaoIa, dadosIA }) {
                                     </div>
                                     <div>
                                         <p className="text-sm font-semibold text-gray-800">
-                                            {tarefa.item}
+                                            {tarefa.item ?? tarefa.nome}
                                         </p>
                                         <p className="text-xs text-gray-500">
                                             {tarefa.descricao}

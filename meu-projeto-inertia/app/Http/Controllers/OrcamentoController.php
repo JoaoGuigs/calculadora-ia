@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Gemini;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +21,8 @@ class OrcamentoController extends Controller
             return Inertia::render('Calculadora', [
                 'total' => 0,
                 'historico' => $historico,
+                'dadosIA' => [],
+                'sugestaoIa' => null,
             ]);
         }
 
@@ -35,9 +36,8 @@ class OrcamentoController extends Controller
             'numeric' => 'O Campo :attribute deve ser um número',
             'min' => 'O Campo :attribute deve ser maior que 0',
         ]);
-        if ($request->valor_hora && $request->horas) {
-            $total = ($request->valor_hora * $request->horas) * 0.94;
-        }
+
+        $total = ($request->valor_hora * $request->horas) * 0.94;
         // Já validado que os campos existem
 
         $novoCalculo = [
@@ -66,7 +66,26 @@ class OrcamentoController extends Controller
                 ->withApiKey($apiKey)
                 ->withHttpClient($httpClient)
                 ->make();
-            $prompt = "Você é um Gerente de Projetos Tech. Analise o escopo: '{$request->descricao}'.
+            $promptBase = "Voce é um  gerente de projetos tech. o Espoco original é '{$request->descricao}'.";
+            if ($request->filled('ajuste')) {
+                $contextoAnterior = $request->session()->get('dadosIA', []);
+                $jsonAnterior = !empty($contextoAnterior) ? json_encode($contextoAnterior) : '{}';
+
+                $prompt = "{$promptBase}
+            
+                Anteriormente, você sugeriu este JSON: {$jsonAnterior}.
+            
+                O usuário solicitou o seguinte ajuste: '{$request->ajuste}'.
+            
+                REGRAS:
+                1. Mantenha a mesma estrutura JSON.
+                2. Atualize as horas e descrições das tarefas com base no ajuste solicitado.
+                3. Retorne APENAS o novo JSON atualizado.";
+            } else {
+
+
+
+                $prompt = "{$promptBase} 
     Retorne um JSON com a seguinte estrutura:
     {
       \"total_sugerido\": (int),
@@ -76,23 +95,26 @@ class OrcamentoController extends Controller
       ]
     }
     Estime as horas de forma realista para um desenvolvedor sênior.";
+            }
             try {
                 // usa modelo estável e amplamente disponível
-                $modelo = $client->generativeModel('models/gemini-2.5-flash-lite') // Recomendo 1.5 ou 2.0 para estabilidade
+                $modelo = $client->generativeModel('models/gemini-2.5-flash') // Recomendo 1.5 ou 2.0 para estabilidade
                     ->withGenerationConfig(new GenerationConfig(
                         responseMimeType: ResponseMimeType::APPLICATION_JSON
                     ));
-                
+
                 $result = $modelo->generateContent($prompt);
                 $dadosIA = $result->text();
                 $decoded = json_decode($dadosIA, true);
 
                 if (is_array($decoded)) {
-                    $totalSugerido = $decoded['total_sugerido'] ?? null;
                     $tarefas = $decoded['tarefas'] ?? [];
-
                     if (!is_array($tarefas)) {
                         $tarefas = [];
+                    }
+                    $totalSugerido = $decoded['total_sugerido'] ?? null;
+                    if ($totalSugerido === null && !empty($tarefas)) {
+                        $totalSugerido = array_sum(array_column($tarefas, 'horas'));
                     }
 
                     $sugestaoIa = $totalSugerido;
@@ -108,6 +130,8 @@ class OrcamentoController extends Controller
                 $dadosArray = [];
             }
         }
+        $request->session()->put('dadosIA', $dadosArray);
+
         return Inertia::render('Calculadora', [
             'total' => $total,
             'historico' => $historico,
