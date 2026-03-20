@@ -1,7 +1,7 @@
 import React from "react";
 import { useForm } from "@inertiajs/react";
 
-export default function Calculadora({ total, sugestaoIa, dadosIA }) {
+export default function Calculadora({ total, sugestaoIa, dadosIA, riscos }) {
     const { data, setData, post, processing, errors } = useForm({
         valor_hora: "",
         horas: "",
@@ -146,6 +146,31 @@ export default function Calculadora({ total, sugestaoIa, dadosIA }) {
                             >
                                 Refinar
                             </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Adicione este bloco logo acima ou abaixo da lista de tarefas */}
+                {riscos && riscos.length > 0 && (
+                    <div className="mt-6 md:col-span-2">
+                        <h3 className=" text-sm font-bold text-amber-800 mb-3 flex items-center gap-2">
+                            <span className="text-lg">⚠️</span>
+                            Análise de Riscos da IA:
+                        </h3>
+                        <div className="grid grid-cols-1 gap-3">
+                            {riscos.map((risco, index) => (
+                                <div
+                                    key={index}
+                                    className="p-3 bg-amber-50 border-l-4 border-amber-400 rounded-r-xl shadow-sm"
+                                >
+                                    <p className="text-sm font-bold text-amber-900">
+                                        {risco.alerta}
+                                    </p>
+                                    <p className="text-xs text-amber-700 mt-1 italic">
+                                        {risco.impacto}
+                                    </p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
